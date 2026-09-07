@@ -1,0 +1,23 @@
+{
+  "_comment": "Compiles just the storage layer to CommonJS so tools/test-sql-store.mjs can run the real SQL against PGlite.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": ".sqltest",
+    "rootDir": "src/lib",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": false
+  },
+  "include": [
+    "src/lib/store/sql-store.ts",
+    "src/lib/store/schema.ts",
+    "src/lib/store/shared.ts",
+    "src/lib/seed.ts",
+    "src/lib/types.ts",
+    "src/lib/utils.ts"
+  ]
+}

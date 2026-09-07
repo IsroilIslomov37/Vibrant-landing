@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   BookOpen,
+  Database,
   ExternalLink,
+  HardDrive,
   GraduationCap,
   Inbox,
   LayoutDashboard,
@@ -19,6 +21,7 @@ import {
   Sparkles,
   Sun,
   Target,
+  TriangleAlert,
   Users,
 } from 'lucide-react';
 import { useToast } from '@/components/providers/toast-provider';
@@ -53,12 +56,19 @@ const TABS: { id: TabId; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'settings', label: 'Настройки', icon: Settings },
 ];
 
+export interface StorageStatus {
+  kind: 'fs' | 'sql';
+  writable: boolean;
+}
+
 export function AdminDashboard({
   initialContent,
   initialLeads,
+  storage,
 }: {
   initialContent: SiteContent;
   initialLeads: Lead[];
+  storage: StorageStatus;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -305,7 +315,7 @@ export function AdminDashboard({
         {/* Content */}
         <main className="min-w-0 flex-1 pb-20">
           {tab === 'overview' ? (
-            <Overview content={draft} leads={initialLeads} onNavigate={setTab} />
+            <Overview content={draft} leads={initialLeads} onNavigate={setTab} storage={storage} />
           ) : null}
           {tab === 'home' ? <HomepageEditor content={draft} onChange={setDraft} /> : null}
           {tab === 'courses' ? <CoursesEditor content={draft} onChange={setDraft} /> : null}
@@ -334,14 +344,69 @@ export function AdminDashboard({
   );
 }
 
+/**
+ * States which backend is live.
+ *
+ * Without this the difference between "saved" and "silently not saved" is
+ * invisible until someone reloads the public site — which is exactly the trap a
+ * serverless deploy on the filesystem store sets.
+ */
+function StorageBanner({ storage }: { storage: StorageStatus }) {
+  if (storage.kind === 'sql') {
+    return (
+      <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+        <Database className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" aria-hidden />
+        <div className="text-sm">
+          <p className="font-semibold">База данных подключена</p>
+          <p className="mt-0.5 text-muted-foreground">
+            Изменения и заявки сохраняются постоянно и видны всем.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!storage.writable) {
+    return (
+      <div className="flex items-start gap-3 rounded-2xl border border-destructive/40 bg-destructive/10 p-4">
+        <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden />
+        <div className="text-sm">
+          <p className="font-semibold">Хранилище недоступно — изменения не сохранятся</p>
+          <p className="mt-0.5 text-muted-foreground">
+            Файловая система только для чтения. Добавьте переменную окружения{' '}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">DATABASE_URL</code>, чтобы
+            включить постоянное хранилище. Заявки сейчас уходят только в Telegram.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-start gap-3 rounded-2xl border border-border/70 bg-muted/30 p-4">
+      <HardDrive className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+      <div className="text-sm">
+        <p className="font-semibold">Локальное файловое хранилище</p>
+        <p className="mt-0.5 text-muted-foreground">
+          Подходит для разработки. На хостинге задайте{' '}
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">DATABASE_URL</code> — иначе правки
+          и заявки не сохранятся.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function Overview({
   content,
   leads,
   onNavigate,
+  storage,
 }: {
   content: SiteContent;
   leads: Lead[];
   onNavigate: (tab: TabId) => void;
+  storage: StorageStatus;
 }) {
   const published = content.courses.items.filter((course) => course.published).length;
   const newLeads = leads.filter((lead) => lead.status === 'new').length;
@@ -364,6 +429,8 @@ function Overview({
 
   return (
     <div className="space-y-5">
+      <StorageBanner storage={storage} />
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => {
           const CardIcon = card.icon;

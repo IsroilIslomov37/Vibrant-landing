@@ -11,3 +11,4 @@ next-env.d.ts
 npm-debug.log*
 # Runtime CMS store — seeded on first boot from src/lib/seed.ts
 data/
+.sqltest/

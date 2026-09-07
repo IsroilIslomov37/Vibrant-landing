@@ -224,7 +224,12 @@ export function LocalizedField({
   );
 }
 
-/** Reads a local file into a data URL so uploads work with no storage bucket. */
+/**
+ * Uploads an image to the asset store and keeps only its URL in the content.
+ *
+ * Inlining data URLs was simpler but put megabytes of base64 into the content
+ * document, which is read and parsed on every page render.
+ */
 export function ImageField({
   label,
   value,
@@ -238,18 +243,30 @@ export function ImageField({
 }) {
   const id = React.useId();
   const [error, setError] = React.useState<string | null>(null);
+  const [uploading, setUploading] = React.useState(false);
 
-  const onFile = (file: File | undefined) => {
+  const onFile = async (file: File | undefined) => {
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
       setError('Файл больше 2 МБ — сожмите изображение.');
       return;
     }
     setError(null);
-    const reader = new FileReader();
-    reader.onload = () => onChange(String(reader.result));
-    reader.onerror = () => setError('Не удалось прочитать файл.');
-    reader.readAsDataURL(file);
+    setUploading(true);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const response = await fetch('/api/assets', { method: 'POST', body });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error ?? `Загрузка не удалась (${response.status})`);
+      }
+      onChange(payload.url);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : 'Не удалось загрузить файл.');
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -273,9 +290,11 @@ export function ImageField({
             id={id}
             type="file"
             accept="image/*"
-            className="block w-full text-xs text-muted-foreground file:mr-3 file:cursor-pointer file:rounded-full file:border-0 file:bg-muted file:px-3 file:py-2 file:text-xs file:font-semibold hover:file:bg-border"
-            onChange={(event) => onFile(event.target.files?.[0])}
+            disabled={uploading}
+            className="block w-full text-xs text-muted-foreground file:mr-3 file:cursor-pointer file:rounded-full file:border-0 file:bg-muted file:px-3 file:py-2 file:text-xs file:font-semibold hover:file:bg-border disabled:opacity-50"
+            onChange={(event) => void onFile(event.target.files?.[0])}
           />
+          {uploading ? <p className="text-xs text-muted-foreground">Загружаем…</p> : null}
           {value ? (
             <Button type="button" variant="ghost" size="sm" onClick={() => onChange(undefined)}>
               <X className="h-3.5 w-3.5" aria-hidden />

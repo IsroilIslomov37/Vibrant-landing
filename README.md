@@ -233,70 +233,103 @@ Blender source project: `https://higgsfield.ai/3d-jutsu/343fc8b4-54b5-45b5-9163-
 
 ## Deploying to Vercel
 
-The app builds and runs on Vercel as-is, but **read what persists first.**
+The app runs fully on Vercel — content edits, leads and image uploads all
+persist — once a Postgres database is attached. Without one it still deploys and
+serves the landing page, but nothing can be saved.
 
-### What works out of the box
+### 1. Import the repo
 
-- The whole landing page, including the 3D hero. Content is served from
-  `src/lib/seed.ts`, which is compiled into the bundle — nothing is read from disk.
-- The application form. If a `data/` write is impossible, the submission is still
-  delivered to your notification channels and the student gets a success
-  response (`{"ok":true,"stored":false}`).
-- `/admin` login and browsing.
+Vercel → **Add New → Project → Import**. The framework preset is detected; no
+build-command overrides are needed.
 
-### What does not persist
+### 2. Attach a database
 
-Vercel's filesystem is read-only outside `/tmp`, and every invocation gets a
-fresh one. So on a stock deploy:
+Project → **Storage → Create Database → Neon (Postgres) → Connect**.
 
-- **Admin saves fail** with a clear `503` and an explanatory toast — they do not
-  silently no-op.
-- **The Leads tab stays empty.** Leads arrive in Telegram but are not archived,
-  so the table and CSV export have nothing to show.
+That injects `DATABASE_URL` / `POSTGRES_URL` automatically. Nothing else to do:
+the schema (`site_content`, `leads`, `assets`) is created on first request with
+`CREATE TABLE IF NOT EXISTS`, so there is no migration step.
 
-Because of that, **set up Telegram notifications before going live** or you will
-lose applications:
+Any Postgres works — Supabase, Railway, a self-hosted instance — as long as one
+of `DATABASE_URL`, `POSTGRES_URL`, `POSTGRES_PRISMA_URL` or
+`DATABASE_POSTGRES_URL` is set.
+
+### 3. Environment variables
+
+| Variable | Required | Value |
+| --- | --- | --- |
+| `DATABASE_URL` | for persistence | injected by the Neon integration |
+| `ADMIN_SECRET` | **yes** | ≥16 random characters — the app throws without it in production |
+| `ADMIN_PASSWORD` | **yes** | your admin password (never ship the default) |
+| `NEXT_PUBLIC_SITE_URL` | recommended | `https://<your-domain>` |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | recommended | instant lead notifications |
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+### 4. Confirm it worked
+
+Open `/admin` and look at the banner on the Обзор tab:
+
+- **«База данных подключена»** (green) — everything persists.
+- **«Локальное файловое хранилище»** — no `DATABASE_URL`; fine locally, broken on Vercel.
+- **«Хранилище недоступно»** (red) — read-only filesystem and no database.
+
+Then change something, hit Save, and reload the public page.
+
+### How persistence degrades
+
+The storage layer never takes the public site down:
+
+- **Reads never throw.** If the database is unreachable, content falls back to
+  the built-in seed and the landing page still renders.
+- **Writes fail loudly.** Admin saves return `503` with an explanatory toast
+  rather than silently doing nothing.
+- **A lead is never lost to a storage outage.** If the archive write fails, the
+  submission is still delivered to Telegram/webhook and the student gets a
+  success response (`{"ok":true,"stored":false}`).
+
+---
+
+## Storage architecture
+
+`src/lib/store/` is the only place that knows where data lives.
 
 ```
-TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
-TELEGRAM_CHAT_ID=-1001234567890
+store/
+  index.ts       picks the adapter, exposes the public API
+  shared.ts      StoreAdapter contract, StorageUnavailableError, buildLead
+  fs-store.ts    JSON files — zero-config local development
+  sql-store.ts   Postgres — used whenever a connection string is present
+  schema.ts      CREATE TABLE IF NOT EXISTS, applied on first use
 ```
 
-and switch the channel on in Admin → Настройки.
+Selection is automatic: Postgres when `DATABASE_URL`/`POSTGRES_URL` is set, the
+filesystem otherwise, so `npm run dev` needs no setup at all.
 
-### Making it fully persistent
+Leads are a single `INSERT` rather than a read-modify-write, so two students
+submitting from separate serverless invocations at the same instant cannot
+overwrite each other — something the JSON store could not promise.
 
-`src/lib/store.ts` is the only module that knows where data lives. Reimplement
-its exports (`getContent`, `saveContent`, `resetContent`, `getLeads`,
-`createLead`, `updateLead`, `deleteLead`, `leadStats`) against a real backend and
-everything else keeps working unchanged. Reasonable choices:
+Admin-uploaded images live in an `assets` table and are referenced by URL
+(`/api/assets/<id>`, served `immutable`). They used to be inlined into the
+content document as base64 data URLs, which meant every page render parsed
+megabytes of it.
 
-| Backend | Notes |
-| --- | --- |
-| Vercel Postgres / Neon | Best fit for the leads table; needs a schema |
-| Supabase | Postgres + auth if you later want multiple admin accounts |
-| Vercel Blob | Closest to the current model — one blob for content, one per lead |
-| Upstash Redis | Simplest KV; fine at this volume |
+### Testing the SQL
 
-### Steps
+```bash
+npm run test:sql
+```
 
-1. Push the repository to GitHub.
-2. In Vercel: **Add New → Project → Import** the repo. The framework preset is
-   detected automatically; no build-command overrides are needed.
-3. Add environment variables (Project → Settings → Environment Variables):
+Runs the shipped SQL against **PGlite** — real Postgres compiled to WASM — so
+schema, parameter placeholders, jsonb round-trips, `bytea` encoding, `RETURNING`
+clauses and concurrent inserts are all covered without provisioning a database.
+Only the network driver differs in production, and that layer is two lines.
 
-   | Variable | Required | Value |
-   | --- | --- | --- |
-   | `ADMIN_SECRET` | **yes** | ≥16 random characters — the build throws without it in production |
-   | `ADMIN_PASSWORD` | **yes** | your admin password (do not ship the default) |
-   | `NEXT_PUBLIC_SITE_URL` | recommended | `https://<your-domain>` |
-   | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | strongly recommended | otherwise leads are not captured anywhere |
-
-   Generate a secret with:
-
-   ```bash
-   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-   ```
-
-4. Deploy, then open `/admin`, log in, and confirm the announcement bar and
-   course prices render as expected.
+It caught two real bugs when it was written: the content version failing to
+increment on the very first save, and `bytea` parameters being rejected because
+every driver serializes binary differently. Binary now crosses the wire as hex
+text and is converted inside Postgres with `encode`/`decode`, which is correct
+on every driver.
