@@ -1,0 +1,13 @@
+node_modules/
+.next/
+out/
+build/
+.env
+.env.local
+.env*.local
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+npm-debug.log*
+# Runtime CMS store — seeded on first boot from src/lib/seed.ts
+data/
