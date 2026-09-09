@@ -1,14 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Eye, EyeOff, LockKeyhole } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { FieldError, Input, Label } from '@/components/ui/field';
 
 export function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [password, setPassword] = useState('');
   const [reveal, setReveal] = useState(false);
@@ -38,8 +37,17 @@ export function LoginForm() {
       }
 
       const from = searchParams.get('from');
-      router.replace(from && from.startsWith('/admin') ? from : '/admin');
-      router.refresh();
+      const target = from && from.startsWith('/admin') ? from : '/admin';
+
+      // A full document load, not router.replace().
+      //
+      // The client router already has an RSC entry for /admin from before the
+      // login — the one the middleware turned into a redirect back here. A soft
+      // navigation serves that cached redirect and bounces straight back to this
+      // form, which reads to the user as a rejected password even though the
+      // request returned 200. Reloading re-runs the middleware with the cookie
+      // that was just set, so the session is always picked up.
+      window.location.replace(target);
     } catch {
       setError('Сервер недоступен. Попробуйте ещё раз.');
     } finally {
@@ -104,7 +112,7 @@ export function LoginForm() {
         </Link>
         {process.env.NODE_ENV !== 'production' ? (
           <p className="mt-3 rounded-xl bg-white/5 p-3 text-[0.7rem] leading-relaxed text-white/45">
-            Пароль по умолчанию для разработки — <code className="text-white/70">vibrant2026</code>. Задайте
+            Пароль по умолчанию для разработки — <code className="text-white/70">admin123</code>. Задайте
             <code className="mx-1 text-white/70">ADMIN_PASSWORD</code> и
             <code className="mx-1 text-white/70">ADMIN_SECRET</code> в <code className="text-white/70">.env.local</code>.
           </p>

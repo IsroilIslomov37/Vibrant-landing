@@ -10,7 +10,7 @@ npm run dev          # http://localhost:3000
 ```
 
 Admin panel: [http://localhost:3000/admin](http://localhost:3000/admin) — default
-development password `vibrant2026` (set `ADMIN_PASSWORD` before deploying).
+development password `admin123` (set `ADMIN_PASSWORD` before deploying).
 
 ---
 
@@ -114,7 +114,7 @@ Copy `.env.example` to `.env.local`:
 
 | Variable | Purpose |
 | --- | --- |
-| `ADMIN_PASSWORD` | Password for `/admin` (default `vibrant2026` in dev) |
+| `ADMIN_PASSWORD` | Password for `/admin` (default `admin123` in dev) |
 | `ADMIN_SECRET` | HMAC key for session cookies; **required** in production, ≥16 chars |
 | `VIBRANT_DATA_DIR` | Where the JSON store lives (default `./data`) |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Telegram lead notifications (enable the channel in Admin → Настройки) |

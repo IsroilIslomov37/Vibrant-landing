@@ -29,7 +29,7 @@ function getSecret(): string {
 }
 
 export function getAdminPassword(): string {
-  return process.env.ADMIN_PASSWORD || 'vibrant2026';
+  return process.env.ADMIN_PASSWORD || 'admin123';
 }
 
 const encoder = new TextEncoder();
