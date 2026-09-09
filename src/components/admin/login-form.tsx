@@ -27,12 +27,19 @@ export function LoginForm() {
       });
 
       if (response.status === 429) {
-        const body = await response.json();
+        const body = await response.json().catch(() => ({}));
         setError(`Слишком много попыток. Повторите через ${Math.ceil((body.retryAfter ?? 60) / 60)} мин.`);
         return;
       }
-      if (!response.ok) {
+      // Only 401 means the password was wrong. Reporting a 500 as "wrong
+      // password" sends everyone hunting for a credentials problem that does not
+      // exist — say plainly that the server failed instead.
+      if (response.status === 401) {
         setError('Неверный пароль.');
+        return;
+      }
+      if (!response.ok) {
+        setError(`Ошибка сервера (${response.status}). Пароль тут ни при чём — проверьте логи сервера.`);
         return;
       }
 
