@@ -4,8 +4,8 @@ import * as React from 'react';
 import { ChevronDown, GripVertical, ImagePlus, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input, Label, Select, Switch, Textarea } from '@/components/ui/field';
-import { cn } from '@/lib/utils';
-import type { LocalizedText } from '@/lib/types';
+import { cn, emptyLocalized } from '@/lib/utils';
+import { LOCALES, type LocalizedText } from '@/lib/types';
 
 /* ------------------------------------------------------------------ layout */
 
@@ -202,8 +202,8 @@ export function LocalizedField({
   return (
     <fieldset>
       <legend className="mb-1.5 text-sm font-medium">{label}</legend>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {(['ru', 'en'] as const).map((locale) => (
+      <div className="grid gap-2 sm:grid-cols-3">
+        {LOCALES.map((locale) => (
           <div key={locale} className="relative">
             <span className="pointer-events-none absolute right-2.5 top-2.5 z-10 rounded bg-muted px-1.5 py-0.5 text-[0.62rem] font-bold uppercase tracking-wider text-muted-foreground">
               {locale}
@@ -334,7 +334,7 @@ export function LocalizedListField({
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => onChange([...items, { ru: '', en: '' }])}
+          onClick={() => onChange([...items, emptyLocalized()])}
         >
           <Plus className="h-3.5 w-3.5" aria-hidden />
           {addLabel}

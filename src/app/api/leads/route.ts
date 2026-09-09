@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { badRequest, requireAdmin, serverError, storageError } from '@/lib/api';
 import { notifyLead } from '@/lib/notify';
 import { buildLead, createLead, getContent, getLeads, StorageUnavailableError } from '@/lib/store';
-import type { CourseLevel, Lead, LeadInput } from '@/lib/types';
+import { LOCALES, type CourseLevel, type Lead, type LeadInput, type Locale } from '@/lib/types';
 import { EMAIL_RE, PHONE_RE, t } from '@/lib/utils';
 
 export const runtime = 'nodejs';
@@ -28,7 +28,7 @@ function validate(payload: unknown): { data: LeadInput } | { error: string } {
     : 'offline';
   const level = LEVELS.includes(body.level as CourseLevel) ? (body.level as CourseLevel) : 'beginner';
   const message = typeof body.message === 'string' ? body.message.slice(0, 800) : '';
-  const locale = body.locale === 'en' ? 'en' : 'ru';
+  const locale: Locale = LOCALES.includes(body.locale as Locale) ? (body.locale as Locale) : 'ru';
   const source = typeof body.source === 'string' ? body.source.slice(0, 40) : 'landing';
   const courseId = typeof body.courseId === 'string' ? body.courseId.slice(0, 64) : '';
 
@@ -49,11 +49,13 @@ export async function POST(request: Request) {
   try {
     const content = await getContent();
     const course = content.courses.items.find((item) => item.id === result.data.courseId);
-    const courseTitle = course
-      ? t(course.title, result.data.locale ?? 'ru')
-      : result.data.locale === 'en'
-        ? 'Not decided yet'
-        : 'Ещё не выбрано';
+    const UNDECIDED: Record<Locale, string> = {
+      ru: 'Ещё не выбрано',
+      uz: 'Hali tanlanmagan',
+      en: 'Not decided yet',
+    };
+    const leadLocale = result.data.locale ?? 'ru';
+    const courseTitle = course ? t(course.title, leadLocale) : UNDECIDED[leadLocale];
 
     // A read-only filesystem must not cost us the application. If the archive
     // write fails, the lead is still delivered to the notification channels and

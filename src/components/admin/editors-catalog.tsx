@@ -16,7 +16,7 @@ import {
 import { ICON_NAMES } from '@/components/ui/icon';
 import { GRADIENT_PRESETS } from '@/lib/seed';
 import type { Course, CourseCategoryId, Mentor, Review, SiteContent } from '@/lib/types';
-import { createId, slugify } from '@/lib/utils';
+import { createId, slugify, emptyLocalized, preview } from '@/lib/utils';
 
 interface EditorProps {
   content: SiteContent;
@@ -92,7 +92,7 @@ function MentorPicker({
 export function CoursesEditor({ content, onChange }: EditorProps) {
   const categoryOptions = content.courses.categories.map((category) => ({
     value: category.id,
-    label: category.label.ru,
+    label: preview(category.label),
   }));
 
   return (
@@ -170,9 +170,9 @@ export function CoursesEditor({ content, onChange }: EditorProps) {
           addLabel="Добавить курс"
           onCreate={() => ({
             id: createId('course'),
-            title: { ru: 'Новый курс', en: 'New course' },
-            summary: { ru: '', en: '' },
-            description: { ru: '', en: '' },
+            title: { ru: 'Новый курс', uz: 'Yangi kurs', en: 'New course' },
+            summary: emptyLocalized(),
+            description: emptyLocalized(),
             category: (content.courses.categories[0]?.id ?? 'it') as CourseCategoryId,
             level: 'beginner',
             durationMonths: 6,
@@ -188,7 +188,7 @@ export function CoursesEditor({ content, onChange }: EditorProps) {
             published: false,
             order: content.courses.items.length + 1,
           })}
-          renderTitle={(course) => course.title.ru || course.title.en || 'Без названия'}
+          renderTitle={(course) => preview(course.title) || 'Без названия'}
           renderSummary={(course) =>
             `${course.category} · ${course.durationMonths} мес · ${course.price.toLocaleString('ru-RU')} ${course.currency}`
           }
@@ -335,8 +335,8 @@ export function MentorsEditor({ content, onChange }: EditorProps) {
           onCreate={() => ({
             id: createId('mentor'),
             name: 'Новый преподаватель',
-            role: { ru: 'Ментор', en: 'Mentor' },
-            bio: { ru: '', en: '' },
+            role: { ru: 'Ментор', uz: 'Mentor', en: 'Mentor' },
+            bio: emptyLocalized(),
             initials: 'NN',
             gradient: GRADIENT_PRESETS[1],
             qualifications: [],
@@ -347,7 +347,7 @@ export function MentorsEditor({ content, onChange }: EditorProps) {
             order: content.mentors.items.length + 1,
           })}
           renderTitle={(mentor) => mentor.name}
-          renderSummary={(mentor) => mentor.role.ru}
+          renderSummary={(mentor) => preview(mentor.role)}
           renderFields={(mentor, update) => (
             <>
               <Grid cols={2}>
@@ -438,7 +438,7 @@ export function MentorsEditor({ content, onChange }: EditorProps) {
 export function ReviewsEditor({ content, onChange }: EditorProps) {
   const courseOptions = [
     { value: '', label: '— не указан —' },
-    ...content.courses.items.map((course) => ({ value: course.id, label: course.title.ru })),
+    ...content.courses.items.map((course) => ({ value: course.id, label: preview(course.title) })),
   ];
 
   return (
@@ -475,8 +475,8 @@ export function ReviewsEditor({ content, onChange }: EditorProps) {
           onCreate={() => ({
             id: createId('review'),
             author: 'Новый студент',
-            authorRole: { ru: 'Выпускник', en: 'Graduate' },
-            quote: { ru: '', en: '' },
+            authorRole: { ru: 'Выпускник', uz: 'Bitiruvchi', en: 'Graduate' },
+            quote: emptyLocalized(),
             initials: 'НС',
             gradient: GRADIENT_PRESETS[2],
             rating: 5,
@@ -485,7 +485,7 @@ export function ReviewsEditor({ content, onChange }: EditorProps) {
             order: content.reviews.items.length + 1,
           })}
           renderTitle={(review) => review.author}
-          renderSummary={(review) => review.quote.ru.slice(0, 90) || review.authorRole.ru}
+          renderSummary={(review) => preview(review.quote).slice(0, 90) || preview(review.authorRole)}
           renderFields={(review, update) => (
             <>
               <Grid cols={3}>
@@ -525,7 +525,7 @@ export function ReviewsEditor({ content, onChange }: EditorProps) {
                 <div className="space-y-3">
                   <LocalizedField
                     label="Название метрики"
-                    value={review.metric?.label ?? { ru: '', en: '' }}
+                    value={review.metric?.label ?? emptyLocalized()}
                     onChange={(label) =>
                       update({
                         metric: {
@@ -543,7 +543,7 @@ export function ReviewsEditor({ content, onChange }: EditorProps) {
                       onChange={(before) =>
                         update({
                           metric: {
-                            label: review.metric?.label ?? { ru: '', en: '' },
+                            label: review.metric?.label ?? emptyLocalized(),
                             before,
                             after: review.metric?.after ?? '',
                           },
@@ -556,7 +556,7 @@ export function ReviewsEditor({ content, onChange }: EditorProps) {
                       onChange={(after) =>
                         update({
                           metric: {
-                            label: review.metric?.label ?? { ru: '', en: '' },
+                            label: review.metric?.label ?? emptyLocalized(),
                             before: review.metric?.before ?? '',
                             after,
                           },

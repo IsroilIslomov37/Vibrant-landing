@@ -5,7 +5,7 @@
  * separately so that a content save can never clobber inbound applications.
  */
 
-export const LOCALES = ['ru', 'en'] as const;
+export const LOCALES = ['ru', 'uz', 'en'] as const;
 export type Locale = (typeof LOCALES)[number];
 
 /** Editable copy is always bilingual — the admin panel renders one input per locale. */

@@ -6,7 +6,7 @@ import { useSite } from '@/components/providers/site-provider';
 import { Button } from '@/components/ui/button';
 import { LOCALE_LABEL } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
-import type { Locale } from '@/lib/types';
+import { LOCALES } from '@/lib/types';
 
 const TONE_CLASSES: Record<string, string> = {
   brand: 'from-brand-600 via-brand-500 to-aqua-500',
@@ -89,7 +89,6 @@ export function SiteHeader() {
     };
   }, [menuOpen]);
 
-  const nextLocale: Locale = locale === 'ru' ? 'en' : 'ru';
 
   return (
     <header className="fixed inset-x-0 top-0 z-50">
@@ -153,19 +152,37 @@ export function SiteHeader() {
 
           {/* Controls */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <button
-              type="button"
-              onClick={() => setLocale(nextLocale)}
-              aria-label={`${ts('lang.switch')}: ${LOCALE_LABEL[nextLocale]}`}
+            {/* All three locales stay visible: a cycling toggle hides which
+                languages exist, and with three of them it takes two taps to
+                reach the last one. */}
+            <div
+              role="group"
+              aria-label={ts('lang.switch')}
               className={cn(
-                'h-9 rounded-full border px-3 text-xs font-bold tracking-wide transition-colors',
-                scrolled
-                  ? 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
-                  : 'border-white/20 text-white/80 hover:bg-white/10 hover:text-white',
+                'flex h-9 items-center gap-0.5 rounded-full border p-0.5 transition-colors',
+                scrolled ? 'border-border' : 'border-white/20',
               )}
             >
-              {LOCALE_LABEL[locale]}
-            </button>
+              {LOCALES.map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  onClick={() => setLocale(code)}
+                  aria-pressed={locale === code}
+                  aria-label={`${ts('lang.switch')}: ${LOCALE_LABEL[code]}`}
+                  className={cn(
+                    'h-8 rounded-full px-2.5 text-xs font-bold tracking-wide transition-colors',
+                    locale === code
+                      ? 'bg-brand-gradient text-white shadow-glow'
+                      : scrolled
+                        ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                        : 'text-white/70 hover:bg-white/10 hover:text-white',
+                  )}
+                >
+                  {LOCALE_LABEL[code]}
+                </button>
+              ))}
+            </div>
 
             <button
               type="button"

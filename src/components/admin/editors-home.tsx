@@ -13,8 +13,8 @@ import {
   TextField,
   ToggleField,
 } from '@/components/admin/primitives';
-import type { HeroStage, SiteContent } from '@/lib/types';
-import { cn, createId } from '@/lib/utils';
+import { LOCALES, type HeroStage, type SiteContent } from '@/lib/types';
+import { cn, createId, emptyLocalized, preview } from '@/lib/utils';
 
 interface EditorProps {
   content: SiteContent;
@@ -161,12 +161,12 @@ export function HomepageEditor({ content, onChange }: EditorProps) {
     const last = content.hero.stages[content.hero.stages.length - 1];
     const stage: HeroStage = {
       id: createId('stage'),
-      badge: { ru: 'Новый этап', en: 'New stage' },
-      title: { ru: 'Заголовок', en: 'Headline' },
-      highlight: { ru: 'акцент', en: 'accent' },
-      subtitle: { ru: '', en: '' },
-      primaryCta: { label: { ru: 'Записаться', en: 'Enroll' }, href: '#apply' },
-      secondaryCta: { label: { ru: 'Курсы', en: 'Courses' }, href: '#courses' },
+      badge: { ru: 'Новый этап', uz: 'Yangi bosqich', en: 'New stage' },
+      title: { ru: 'Заголовок', uz: 'Sarlavha', en: 'Headline' },
+      highlight: { ru: 'акцент', uz: 'urg‘u', en: 'accent' },
+      subtitle: emptyLocalized(),
+      primaryCta: { label: { ru: 'Записаться', uz: 'Yozilish', en: 'Enroll' }, href: '#apply' },
+      secondaryCta: { label: { ru: 'Курсы', uz: 'Kurslar', en: 'Courses' }, href: '#courses' },
       // Seed the new keyframe from the previous one so the camera move is sane.
       camera: last
         ? { ...last.camera, yaw: last.camera.yaw + 60, target: { ...last.camera.target } }
@@ -267,7 +267,7 @@ export function HomepageEditor({ content, onChange }: EditorProps) {
           {content.nav.links.map((link, index) => (
             <div key={link.id} className="flex items-end gap-2 rounded-2xl border border-border/70 bg-muted/20 p-3">
               <div className="grid flex-1 gap-2 sm:grid-cols-3">
-                {(['ru', 'en'] as const).map((locale) => (
+                {LOCALES.map((locale) => (
                   <Input
                     key={locale}
                     value={link.label[locale]}
@@ -333,7 +333,7 @@ export function HomepageEditor({ content, onChange }: EditorProps) {
                   ...content.nav,
                   links: [
                     ...content.nav.links,
-                    { id: createId('nav'), label: { ru: 'Новый пункт', en: 'New link' }, href: '#' },
+                    { id: createId('nav'), label: { ru: 'Новый пункт', uz: 'Yangi bo‘lim', en: 'New link' }, href: '#' },
                   ],
                 },
               })
@@ -380,9 +380,9 @@ export function HomepageEditor({ content, onChange }: EditorProps) {
                     className="min-w-0 flex-1 text-left"
                   >
                     <span className="block truncate text-sm font-semibold">
-                      {stage.title.ru} {stage.highlight.ru}
+                      {preview(stage.title)} {preview(stage.highlight)}
                     </span>
-                    <span className="block truncate text-xs text-muted-foreground">{stage.badge.ru}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{preview(stage.badge)}</span>
                   </button>
 
                   <div className="flex flex-col">

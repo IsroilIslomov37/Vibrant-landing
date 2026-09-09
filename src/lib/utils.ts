@@ -1,34 +1,62 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import type { Locale, LocalizedText } from './types';
+import { LOCALES, type Locale, type LocalizedText } from './types';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** Reads a bilingual field with a graceful fallback to the other locale. */
+/**
+ * Reads a localized field, falling back through the remaining locales.
+ *
+ * A translation the admin has not filled in yet shows the Russian (then Uzbek,
+ * then English) text instead of an empty element — adding a language must never
+ * blank out the page while its content is still being written.
+ */
 export function t(value: LocalizedText | undefined, locale: Locale): string {
   if (!value) return '';
-  return value[locale] || value.ru || value.en || '';
+  return value[locale] || value.ru || value.uz || value.en || '';
 }
 
-export function localized(ru: string, en: string): LocalizedText {
-  return { ru, en };
+export function localized(ru: string, uz: string, en: string): LocalizedText {
+  return { ru, uz, en };
 }
 
 export function emptyLocalized(): LocalizedText {
-  return { ru: '', en: '' };
+  return Object.fromEntries(LOCALES.map((locale) => [locale, ''])) as LocalizedText;
 }
 
-const CURRENCY_LABEL: Record<string, { ru: string; en: string }> = {
-  UZS: { ru: 'сум', en: 'UZS' },
-  USD: { ru: '$', en: '$' },
-  EUR: { ru: '€', en: '€' },
-  RUB: { ru: '₽', en: '₽' },
+/**
+ * Fills in any locale absent from stored content.
+ *
+ * Content saved before a language was added has no key for it, which would make
+ * the admin input uncontrolled; this keeps every field a controlled empty string.
+ */
+export function fillLocales(value: Partial<LocalizedText> | undefined): LocalizedText {
+  return { ...emptyLocalized(), ...(value ?? {}) };
+}
+
+/** Label for collapsed admin rows — the first non-empty translation wins. */
+export function preview(value: LocalizedText | undefined): string {
+  if (!value) return '';
+  for (const locale of LOCALES) {
+    if (value[locale]) return value[locale];
+  }
+  return '';
+}
+
+const CURRENCY_LABEL: Record<string, LocalizedText> = {
+  UZS: { ru: 'сум', uz: "so'm", en: 'UZS' },
+  USD: { ru: '$', uz: '$', en: '$' },
+  EUR: { ru: '€', uz: '€', en: '€' },
+  RUB: { ru: '₽', uz: '₽', en: '₽' },
 };
 
+/** BCP-47 tag per locale, for Intl number and date formatting. */
+const INTL_LOCALE: Record<Locale, string> = { ru: 'ru-RU', uz: 'uz-UZ', en: 'en-US' };
+
 export function formatPrice(value: number, currency: string, locale: Locale): string {
-  const grouped = new Intl.NumberFormat(locale === 'ru' ? 'ru-RU' : 'en-US', {
+  const grouped = new Intl.NumberFormat(INTL_LOCALE[locale], {
     maximumFractionDigits: 0,
   }).format(value);
   const label = CURRENCY_LABEL[currency];
@@ -39,7 +67,7 @@ export function formatPrice(value: number, currency: string, locale: Locale): st
 
 export function formatDate(iso: string, locale: Locale): string {
   try {
-    return new Intl.DateTimeFormat(locale === 'ru' ? 'ru-RU' : 'en-US', {
+    return new Intl.DateTimeFormat(INTL_LOCALE[locale], {
       day: '2-digit',
       month: 'short',
       year: 'numeric',

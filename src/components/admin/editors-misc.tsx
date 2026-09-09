@@ -15,7 +15,7 @@ import {
 } from '@/components/admin/primitives';
 import { ICON_NAMES } from '@/components/ui/icon';
 import type { FeatureItem, ProcessStep, SiteContent, StatItem } from '@/lib/types';
-import { createId } from '@/lib/utils';
+import { createId, emptyLocalized, preview } from '@/lib/utils';
 
 interface EditorProps {
   content: SiteContent;
@@ -65,13 +65,13 @@ export function MethodologyEditor({ content, onChange }: EditorProps) {
           addLabel="Добавить показатель"
           onCreate={() => ({
             id: createId('stat'),
-            label: { ru: 'Новый показатель', en: 'New stat' },
+            label: { ru: 'Новый показатель', uz: 'Yangi ko‘rsatkich', en: 'New stat' },
             value: 100,
             suffix: '+',
             icon: 'Trophy',
             order: methodology.stats.length,
           })}
-          renderTitle={(stat) => `${stat.value}${stat.suffix} — ${stat.label.ru}`}
+          renderTitle={(stat) => `${stat.value}${stat.suffix} — ${preview(stat.label)}`}
           renderFields={(stat, update) => (
             <>
               <LocalizedField label="Подпись" value={stat.label} onChange={(label) => update({ label })} />
@@ -97,14 +97,14 @@ export function MethodologyEditor({ content, onChange }: EditorProps) {
           addLabel="Добавить преимущество"
           onCreate={() => ({
             id: createId('feature'),
-            title: { ru: 'Новое преимущество', en: 'New feature' },
-            description: { ru: '', en: '' },
+            title: { ru: 'Новое преимущество', uz: 'Yangi afzallik', en: 'New feature' },
+            description: emptyLocalized(),
             icon: 'Sparkles',
             accent: 'brand',
             order: methodology.features.length,
           })}
-          renderTitle={(feature) => feature.title.ru}
-          renderSummary={(feature) => feature.description.ru}
+          renderTitle={(feature) => preview(feature.title)}
+          renderSummary={(feature) => preview(feature.description)}
           renderFields={(feature, update) => (
             <>
               <LocalizedField label="Заголовок" value={feature.title} onChange={(title) => update({ title })} />
@@ -130,12 +130,12 @@ export function MethodologyEditor({ content, onChange }: EditorProps) {
           addLabel="Добавить этап"
           onCreate={() => ({
             id: createId('step'),
-            title: { ru: 'Новый этап', en: 'New step' },
-            description: { ru: '', en: '' },
+            title: { ru: 'Новый этап', uz: 'Yangi bosqich', en: 'New step' },
+            description: emptyLocalized(),
             order: methodology.steps.length,
           })}
-          renderTitle={(step) => step.title.ru}
-          renderSummary={(step) => step.description.ru}
+          renderTitle={(step) => preview(step.title)}
+          renderSummary={(step) => preview(step.description)}
           renderFields={(step, update) => (
             <>
               <LocalizedField label="Название" value={step.title} onChange={(title) => update({ title })} />
