@@ -110,6 +110,16 @@
     @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
   }
 
+  /* Keep saved credentials and contact details inside the active colour theme. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-text-fill-color: hsl(var(--foreground));
+    caret-color: hsl(var(--foreground));
+    box-shadow: 0 0 0 1000px hsl(var(--background)) inset;
+    transition: background-color 9999s ease-out 0s;
+  }
+
   /* Scrollbar */
   ::-webkit-scrollbar {
     width: 10px;

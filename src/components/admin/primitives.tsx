@@ -1,8 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { ChevronDown, GripVertical, ImagePlus, Plus, Trash2, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ChevronDown, GripVertical, ImagePlus, Plus, Trash2, Upload, X } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input, Label, Select, Switch, Textarea } from '@/components/ui/field';
 import { cn, emptyLocalized } from '@/lib/utils';
 import { LOCALES, type LocalizedText } from '@/lib/types';
@@ -147,13 +147,13 @@ export function SelectField<T extends string>({
   return (
     <div>
       <Label htmlFor={id}>{label}</Label>
-      <Select id={id} value={value} onChange={(event) => onChange(event.target.value as T)}>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </Select>
+      <Select
+        id={id}
+        aria-label={label}
+        value={value}
+        onValueChange={(nextValue) => onChange(nextValue as T)}
+        options={options}
+      />
     </div>
   );
 }
@@ -285,16 +285,33 @@ export function ImageField({
             </span>
           )}
         </div>
-        <div className="flex flex-1 flex-wrap gap-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           <input
             id={id}
             type="file"
             accept="image/*"
             disabled={uploading}
-            className="block w-full text-xs text-muted-foreground file:mr-3 file:cursor-pointer file:rounded-full file:border-0 file:bg-muted file:px-3 file:py-2 file:text-xs file:font-semibold hover:file:bg-border disabled:opacity-50"
-            onChange={(event) => void onFile(event.target.files?.[0])}
+            className="peer sr-only"
+            onChange={(event) => {
+              const input = event.currentTarget;
+              void onFile(input.files?.[0]).finally(() => {
+                input.value = '';
+              });
+            }}
           />
-          {uploading ? <p className="text-xs text-muted-foreground">Загружаем…</p> : null}
+          <label
+            htmlFor={id}
+            aria-disabled={uploading}
+            className={cn(
+              buttonVariants({ variant: 'outline', size: 'sm' }),
+              'cursor-pointer peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background',
+              uploading && 'pointer-events-none opacity-50',
+            )}
+          >
+            <Upload className="h-3.5 w-3.5" aria-hidden />
+            {uploading ? 'Загружаем…' : 'Выбрать файл'}
+          </label>
+          <span className="text-xs text-muted-foreground">PNG, JPG, WebP</span>
           {value ? (
             <Button type="button" variant="ghost" size="sm" onClick={() => onChange(undefined)}>
               <X className="h-3.5 w-3.5" aria-hidden />

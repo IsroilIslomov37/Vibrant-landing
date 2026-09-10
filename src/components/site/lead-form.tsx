@@ -236,23 +236,23 @@ export function LeadForm({
             <Label htmlFor="lead-course">{ts('form.course')}</Label>
             <Select
               id="lead-course"
+              aria-label={ts('form.course')}
               value={values.courseId}
-              onChange={(event) => set('courseId', event.target.value)}
-              aria-invalid={Boolean(errors.courseId)}
-            >
-              <option value="">{ts('form.courseAny')}</option>
-              {content.courses.categories.map((category) => (
-                <optgroup key={category.id} label={tx(category.label)}>
-                  {courses
+              onValueChange={(courseId) => set('courseId', courseId)}
+              options={[
+                { value: '', label: ts('form.courseAny') },
+                ...content.courses.categories.flatMap((category) =>
+                  courses
                     .filter((course) => course.category === category.id)
-                    .map((course) => (
-                      <option key={course.id} value={course.id}>
-                        {tx(course.title)}
-                      </option>
-                    ))}
-                </optgroup>
-              ))}
-            </Select>
+                    .map((course) => ({
+                      value: course.id,
+                      label: tx(course.title),
+                      group: tx(category.label),
+                    })),
+                ),
+              ]}
+              aria-invalid={Boolean(errors.courseId)}
+            />
             <FieldError>{errors.courseId}</FieldError>
           </div>
 
@@ -292,13 +292,15 @@ export function LeadForm({
             <Label htmlFor="lead-level">{ts('form.level')}</Label>
             <Select
               id="lead-level"
+              aria-label={ts('form.level')}
               value={values.level}
-              onChange={(event) => set('level', event.target.value as CourseLevel)}
-            >
-              <option value="beginner">{ts('courses.level.beginner')}</option>
-              <option value="intermediate">{ts('courses.level.intermediate')}</option>
-              <option value="advanced">{ts('courses.level.advanced')}</option>
-            </Select>
+              onValueChange={(level) => set('level', level as CourseLevel)}
+              options={[
+                { value: 'beginner', label: ts('courses.level.beginner') },
+                { value: 'intermediate', label: ts('courses.level.intermediate') },
+                { value: 'advanced', label: ts('courses.level.advanced') },
+              ]}
+            />
           </div>
           <div>
             <Label htmlFor="lead-message" hint={ts('form.optional')}>

@@ -1,6 +1,6 @@
 'use client';
 
-import { Input } from '@/components/ui/field';
+import { Input, Switch } from '@/components/ui/field';
 import { GradientPicker } from '@/components/admin/gradient-picker';
 import {
   CollectionEditor,
@@ -576,15 +576,17 @@ export function ReviewsEditor({ content, onChange }: EditorProps) {
                 />
               </Grid>
 
-              <label className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/40 p-3 text-sm">
-                <input
-                  type="checkbox"
+              <div className="flex items-center justify-between gap-4 rounded-2xl border border-border/70 bg-background/40 p-3">
+                <div>
+                  <p className="text-sm font-medium">Закрепить в начале списка</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">Отзыв будет показан первым.</p>
+                </div>
+                <Switch
                   checked={review.featured}
-                  onChange={(event) => update({ featured: event.target.checked })}
-                  className="h-4 w-4 rounded border-border accent-brand-500"
+                  onCheckedChange={(featured) => update({ featured })}
+                  label="Закрепить отзыв в начале списка"
                 />
-                Закрепить в начале списка
-              </label>
+              </div>
             </>
           )}
         />

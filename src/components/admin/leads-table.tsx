@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/providers/toast-provider';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Badge, Input, Select, Textarea } from '@/components/ui/field';
 import { Modal } from '@/components/ui/modal';
 import { Panel } from '@/components/admin/primitives';
@@ -33,6 +34,15 @@ const STATUS_TONE: Record<LeadStatus, 'brand' | 'sun' | 'success' | 'muted'> = {
   archived: 'muted',
 };
 
+const STATUS_DOT: Record<LeadStatus, string> = {
+  new: 'bg-brand-400',
+  contacted: 'bg-sun-400',
+  enrolled: 'bg-emerald-400',
+  archived: 'bg-muted-foreground',
+};
+
+const STATUS_ORDER: LeadStatus[] = ['new', 'contacted', 'enrolled', 'archived'];
+
 const FORMAT_LABEL: Record<Lead['format'], string> = {
   online: 'Онлайн',
   offline: 'В центре',
@@ -48,6 +58,8 @@ export function LeadsTable({ initialLeads }: { initialLeads: Lead[] }) {
   const [refreshing, setRefreshing] = useState(false);
   const [detail, setDetail] = useState<Lead | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const counts = useMemo(() => {
     const base: Record<LeadStatus | 'all', number> = {
@@ -112,8 +124,8 @@ export function LeadsTable({ initialLeads }: { initialLeads: Lead[] }) {
   };
 
   const remove = async (id: string) => {
-    if (!window.confirm('Удалить заявку безвозвратно?')) return;
     const previous = leads;
+    setDeletingId(id);
     setLeads((current) => current.filter((lead) => lead.id !== id));
     setDetail(null);
     try {
@@ -123,6 +135,9 @@ export function LeadsTable({ initialLeads }: { initialLeads: Lead[] }) {
     } catch {
       setLeads(previous);
       toast({ title: 'Не удалось удалить заявку', tone: 'error' });
+    } finally {
+      setDeletingId(null);
+      setDeleteTarget(null);
     }
   };
 
@@ -260,22 +275,26 @@ export function LeadsTable({ initialLeads }: { initialLeads: Lead[] }) {
                       <Select
                         value={lead.status}
                         aria-label={`Статус заявки ${lead.name}`}
-                        onChange={(event) => patch(lead.id, { status: event.target.value as LeadStatus })}
+                        onValueChange={(status) => patch(lead.id, { status: status as LeadStatus })}
+                        options={STATUS_ORDER.map((status) => ({
+                          value: status,
+                          searchText: STATUS_LABEL[status],
+                          label: (
+                            <>
+                              <span className={cn('h-2 w-2 shrink-0 rounded-full', STATUS_DOT[status])} aria-hidden />
+                              <span>{STATUS_LABEL[status]}</span>
+                            </>
+                          ),
+                        }))}
                         className="h-9 w-36 text-xs"
-                      >
-                        {(Object.keys(STATUS_LABEL) as LeadStatus[]).map((status) => (
-                          <option key={status} value={status}>
-                            {STATUS_LABEL[status]}
-                          </option>
-                        ))}
-                      </Select>
+                      />
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Button
                         variant="ghost"
                         size="icon-sm"
                         aria-label={`Удалить заявку ${lead.name}`}
-                        onClick={() => remove(lead.id)}
+                        onClick={() => setDeleteTarget(lead)}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
                       </Button>
@@ -362,6 +381,25 @@ export function LeadsTable({ initialLeads }: { initialLeads: Lead[] }) {
           </div>
         ) : null}
       </Modal>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => {
+          if (!deletingId) setDeleteTarget(null);
+        }}
+        onConfirm={() => {
+          if (deleteTarget) void remove(deleteTarget.id);
+        }}
+        title="Удалить заявку?"
+        description={
+          deleteTarget
+            ? `Заявка «${deleteTarget.name}» будет удалена без возможности восстановления.`
+            : undefined
+        }
+        confirmLabel="Удалить"
+        destructive
+        loading={Boolean(deleteTarget && deletingId === deleteTarget.id)}
+      />
     </>
   );
 }

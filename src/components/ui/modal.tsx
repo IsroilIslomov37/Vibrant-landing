@@ -58,6 +58,8 @@ export function Modal({
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        const target = event.target instanceof Element ? event.target : null;
+        if (target?.closest('[role="combobox"][aria-expanded="true"]')) return;
         event.stopPropagation();
         onClose();
         return;

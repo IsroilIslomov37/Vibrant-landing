@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/providers/toast-provider';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Badge } from '@/components/ui/field';
 import { Panel } from '@/components/admin/primitives';
 import { HomepageEditor } from '@/components/admin/editors-home';
@@ -44,6 +45,31 @@ type TabId =
   | 'methodology'
   | 'leads'
   | 'settings';
+
+type ConfirmAction = 'discard' | 'reset' | 'logout';
+
+const CONFIRM_ACTIONS: Record<
+  ConfirmAction,
+  { title: string; description: string; confirmLabel: string; destructive?: boolean }
+> = {
+  discard: {
+    title: 'Отменить изменения?',
+    description: 'Все правки после последнего сохранения будут потеряны.',
+    confirmLabel: 'Отменить изменения',
+  },
+  reset: {
+    title: 'Сбросить весь контент?',
+    description: 'Страницы вернутся к заводским настройкам. Сохранённые заявки останутся на месте.',
+    confirmLabel: 'Сбросить контент',
+    destructive: true,
+  },
+  logout: {
+    title: 'Выйти без сохранения?',
+    description: 'Несохранённые изменения будут потеряны.',
+    confirmLabel: 'Выйти',
+    destructive: true,
+  },
+};
 
 const TABS: { id: TabId; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'overview', label: 'Обзор', icon: LayoutDashboard },
@@ -79,6 +105,7 @@ export function AdminDashboard({
   const [saving, setSaving] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [dark, setDark] = useState(true);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
 
   const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(saved), [draft, saved]);
 
@@ -144,12 +171,10 @@ export function AdminDashboard({
   }, [dirty, saving, save]);
 
   const discard = () => {
-    if (!window.confirm('Отменить все несохранённые изменения?')) return;
     setDraft(deepClone(saved));
   };
 
   const resetToSeed = async () => {
-    if (!window.confirm('Сбросить весь контент к заводским настройкам? Заявки не пострадают.')) return;
     setSaving(true);
     try {
       const response = await fetch('/api/content', { method: 'DELETE' });
@@ -167,7 +192,6 @@ export function AdminDashboard({
   };
 
   const logout = async () => {
-    if (dirty && !window.confirm('Есть несохранённые изменения. Выйти без сохранения?')) return;
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/admin/login');
     router.refresh();
@@ -182,6 +206,17 @@ export function AdminDashboard({
       /* ignore */
     }
     setDark(next);
+  };
+
+  const confirmPendingAction = async () => {
+    const action = confirmAction;
+    if (!action) return;
+
+    if (action === 'discard') discard();
+    else if (action === 'reset') await resetToSeed();
+    else await logout();
+
+    setConfirmAction(null);
   };
 
   const newLeads = initialLeads.filter((lead) => lead.status === 'new').length;
@@ -239,7 +274,7 @@ export function AdminDashboard({
             </Button>
 
             {dirty ? (
-              <Button variant="ghost" size="sm" onClick={discard} className="hidden sm:inline-flex">
+              <Button variant="ghost" size="sm" onClick={() => setConfirmAction('discard')} className="hidden sm:inline-flex">
                 Отменить
               </Button>
             ) : null}
@@ -294,7 +329,7 @@ export function AdminDashboard({
             <div className="!mt-6 space-y-1 border-t border-border pt-4">
               <button
                 type="button"
-                onClick={resetToSeed}
+                onClick={() => setConfirmAction('reset')}
                 className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <RotateCcw className="h-4 w-4 shrink-0" aria-hidden />
@@ -302,7 +337,10 @@ export function AdminDashboard({
               </button>
               <button
                 type="button"
-                onClick={logout}
+                onClick={() => {
+                  if (dirty) setConfirmAction('logout');
+                  else void logout();
+                }}
                 className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
               >
                 <LogOut className="h-4 w-4 shrink-0" aria-hidden />
@@ -331,7 +369,7 @@ export function AdminDashboard({
       {dirty ? (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-3 backdrop-blur-xl sm:hidden">
           <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={discard}>
+            <Button variant="outline" className="flex-1" onClick={() => setConfirmAction('discard')}>
               Отменить
             </Button>
             <Button className="flex-1" onClick={save} loading={saving}>
@@ -339,6 +377,21 @@ export function AdminDashboard({
             </Button>
           </div>
         </div>
+      ) : null}
+
+      {confirmAction ? (
+        <ConfirmDialog
+          open
+          onClose={() => {
+            if (!saving) setConfirmAction(null);
+          }}
+          onConfirm={() => void confirmPendingAction()}
+          title={CONFIRM_ACTIONS[confirmAction].title}
+          description={CONFIRM_ACTIONS[confirmAction].description}
+          confirmLabel={CONFIRM_ACTIONS[confirmAction].confirmLabel}
+          destructive={CONFIRM_ACTIONS[confirmAction].destructive}
+          loading={confirmAction === 'reset' && saving}
+        />
       ) : null}
     </div>
   );

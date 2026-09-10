@@ -1,8 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+export { Select } from '@/components/ui/select';
+export type { SelectOption, SelectProps } from '@/components/ui/select';
 
 const baseField =
   'w-full rounded-xl border border-input bg-background/60 px-4 text-sm text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/25 disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-destructive aria-[invalid=true]:ring-destructive/25';
@@ -17,28 +19,7 @@ export const Textarea = React.forwardRef<
   HTMLTextAreaElement,
   React.TextareaHTMLAttributes<HTMLTextAreaElement>
 >(function Textarea({ className, ...props }, ref) {
-  return <textarea ref={ref} className={cn(baseField, 'min-h-[104px] py-3 leading-relaxed', className)} {...props} />;
-});
-
-export const Select = React.forwardRef<
-  HTMLSelectElement,
-  React.SelectHTMLAttributes<HTMLSelectElement>
->(function Select({ className, children, ...props }, ref) {
-  return (
-    <div className="relative">
-      <select
-        ref={ref}
-        className={cn(baseField, 'h-11 appearance-none pr-10', className)}
-        {...props}
-      >
-        {children}
-      </select>
-      <ChevronDown
-        className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-        aria-hidden
-      />
-    </div>
-  );
+  return <textarea ref={ref} className={cn(baseField, 'min-h-[104px] resize-y py-3 leading-relaxed', className)} {...props} />;
 });
 
 export function Label({

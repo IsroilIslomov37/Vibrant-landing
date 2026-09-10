@@ -2,7 +2,7 @@
 
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/field';
+import { Input, Select } from '@/components/ui/field';
 import {
   CollectionEditor,
   Grid,
@@ -249,24 +249,19 @@ export function SettingsEditor({ content, onChange }: EditorProps) {
                         })
                       }
                     />
-                    <select
+                    <Select
                       value={social.icon}
                       aria-label={`Соцсеть ${index + 1}: иконка`}
-                      onChange={(event) =>
+                      onValueChange={(icon) =>
                         setFooter({
                           socials: footer.socials.map((item) =>
-                            item.id === social.id ? { ...item, icon: event.target.value } : item,
+                            item.id === social.id ? { ...item, icon } : item,
                           ),
                         })
                       }
-                      className="h-11 rounded-xl border border-input bg-background/60 px-3 text-sm"
-                    >
-                      {ICON_NAMES.map((name) => (
-                        <option key={name} value={name}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
+                      options={ICON_OPTIONS}
+                      className="px-3"
+                    />
                   </div>
                   <Button
                     type="button"
