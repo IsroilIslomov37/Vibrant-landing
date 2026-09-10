@@ -147,6 +147,8 @@ function clusterOf(name) {
  * carries far more emission than the same colour does elsewhere on the deck.
  */
 const EMISSIVE = {
+  campusTrim: 0.5,
+  campusGold: 0.15,
   screen: 0.95,
   aqua: 0.68,
   sun: 0.28,
@@ -168,6 +170,85 @@ const EMISSIVE_OVERRIDES = {
 
 function emissiveFor(cluster, material) {
   return EMISSIVE_OVERRIDES[`${cluster}|${material}`] ?? EMISSIVE[material] ?? 0;
+}
+
+// Animation belongs to an object, never to every object sharing its colour.
+// In particular, book covers must remain attached to their static pages.
+function spinFor(name, material) {
+  if (!/^Hub_(Core_(Shell|Inner)|Shard_\d+)$/.test(name)) return undefined;
+  const speed = { brand: 0.16, aqua: -0.24, rose: 0.19 }[material];
+  return speed === undefined ? undefined : { speed, cx: 0, cy: 6.2, cz: 0 };
+}
+
+/** Keep planar panels intact: separately sorted triangles can cut through a bezel. */
+function planarPolygons(positions, indices) {
+  const triangles = [];
+  const edges = new Map();
+  const normal = (face) => {
+    const [a, b, c] = face.map((i) => positions.slice(i * 3, i * 3 + 3));
+    const u = b.map((v, i) => v - a[i]);
+    const v = c.map((value, i) => value - a[i]);
+    const n = [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
+    const length = Math.hypot(...n);
+    return length > 1e-9 ? n.map((value) => value / length) : null;
+  };
+  const edgeKey = (a, b) => a < b ? `${a}:${b}` : `${b}:${a}`;
+  for (let i = 0; i < indices.length; i += 3) {
+    const tri = indices.slice(i, i + 3);
+    const index = triangles.length;
+    triangles.push(tri);
+    for (let j = 0; j < 3; j += 1) {
+      const key = edgeKey(tri[j], tri[(j + 1) % 3]);
+      if (!edges.has(key)) edges.set(key, []);
+      edges.get(key).push(index);
+    }
+  }
+  const normals = triangles.map(normal);
+  const used = new Set();
+  const polygons = [];
+  for (let i = 0; i < triangles.length; i += 1) {
+    if (used.has(i)) continue;
+    const a = triangles[i];
+    const na = normals[i];
+    let quad = null;
+    for (let edge = 0; na && edge < 3 && !quad; edge += 1) {
+      const adjacent = edges.get(edgeKey(a[edge], a[(edge + 1) % 3]));
+      if (adjacent.length !== 2) continue;
+      const j = adjacent.find((index) => index !== i);
+      if (used.has(j)) continue;
+      const b = triangles[j], nb = normals[j];
+      if (!nb || na.reduce((sum, value, k) => sum + value * nb[k], 0) < 0.99999) continue;
+      const boundary = new Map();
+      for (const triangle of [a, b]) {
+        for (let k = 0; k < 3; k += 1) {
+          const start = triangle[k], end = triangle[(k + 1) % 3];
+          const key = edgeKey(start, end);
+          if (boundary.has(key)) boundary.delete(key);
+          else boundary.set(key, [start, end]);
+        }
+      }
+      if (boundary.size !== 4) continue;
+      const directed = [...boundary.values()];
+      const candidate = [directed[0][0]];
+      for (let k = 0; k < 3; k += 1) {
+        const next = directed.find(([start]) => start === candidate[candidate.length - 1]);
+        if (next) candidate.push(next[1]);
+      }
+      if (new Set(candidate).size !== 4) continue;
+      const closing = directed.find(([start]) => start === candidate[3]);
+      if (!closing || closing[1] !== candidate[0]) continue;
+      const convex = candidate.every((_, k) => {
+        const n = normal([candidate[k], candidate[(k + 1) % 4], candidate[(k + 2) % 4]]);
+        return n && n.reduce((sum, value, axis) => sum + value * na[axis], 0) > 0.99999;
+      });
+      if (!convex) continue;
+      quad = candidate;
+      used.add(j);
+    }
+    used.add(i);
+    polygons.push(quad ?? a);
+  }
+  return polygons;
 }
 
 /* --------------------------------------------------------------- conversion */
@@ -204,7 +285,8 @@ function walk(nodeIndex, parentMatrix) {
         Math.round(factor[1] * 255),
         Math.round(factor[2] * 255),
       ];
-      const key = `${cluster}|${material.name}`;
+      const spin = spinFor(node.name ?? '', material.name);
+      const key = `${cluster}|${material.name}|${spin ? 'animated' : 'static'}`;
       let group = groups.get(key);
       if (!group) {
         group = {
@@ -213,6 +295,7 @@ function walk(nodeIndex, parentMatrix) {
           color,
           emissive: emissiveFor(cluster, material.name),
           alpha: factor[3] ?? 1,
+          ...(spin ? { spin } : {}),
           positions: [],
           indices: [],
           lookup: new Map(),
@@ -225,8 +308,7 @@ function walk(nodeIndex, parentMatrix) {
         ? readAccessor(json, bin, primitive.indices).data
         : Float64Array.from({ length: positions.count }, (_, i) => i);
 
-      // Weld vertices per group at 1cm precision — the scene is ~34 units wide,
-      // so this is far below a visible threshold and roughly halves the payload.
+      // Millimetre precision preserves thin screen graphics and inset panels.
       const push = (vertexIndex) => {
         const [wx, wy, wz] = transformPoint(
           world,
@@ -234,9 +316,9 @@ function walk(nodeIndex, parentMatrix) {
           positions.data[vertexIndex * 3 + 1],
           positions.data[vertexIndex * 3 + 2],
         );
-        const rx = Math.round(wx * 100) / 100;
-        const ry = Math.round(wy * 100) / 100;
-        const rz = Math.round(wz * 100) / 100;
+        const rx = Math.round(wx * 1000) / 1000;
+        const ry = Math.round(wy * 1000) / 1000;
+        const rz = Math.round(wz * 1000) / 1000;
         const hash = `${rx},${ry},${rz}`;
         let slot = group.lookup.get(hash);
         if (slot === undefined) {
@@ -271,7 +353,7 @@ const payload = {
     // Draw order within a depth bucket is stable; sorting by cluster keeps the
     // JSON diff readable between regenerations.
     .sort((a, b) => a.cluster.localeCompare(b.cluster) || a.material.localeCompare(b.material))
-    .map(({ lookup, ...rest }) => rest),
+    .map(({ lookup, ...rest }) => ({ ...rest, polygons: planarPolygons(rest.positions, rest.indices) })),
 };
 
 mkdirSync(dirname(outputPath), { recursive: true });

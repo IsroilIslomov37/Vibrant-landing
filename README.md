@@ -198,9 +198,11 @@ npm run typecheck  # tsc --noEmit
 
 The campus in the hero is modelled in Blender (via the Higgsfield 3D scene
 builder), not generated procedurally — 180 objects, 2,976 triangles, 16
-materials: desks with laptops, chairs, mugs and notebooks; a whiteboard; a
+builder), not generated procedurally — 218 objects, 4,052 triangles, 20
+materials: desks with laptops, chairs, mugs and notebooks; an illustrated whiteboard; a
 knowledge core on a finned column with a book stack; a graduation plinth ringed
-by six alumni figures; benches, shelving, planters and beacon pillars.
+by six alumni figures; benches, shelving, planters, beacon pillars and a framed
+practice zone. The repeatable Blender refinement is kept in `tools/refine-campus.py`.
 
 **Pipeline**
 
@@ -217,11 +219,12 @@ the glTF Y-up conversion, so exported node translations land **exactly** in the
 app's coordinate space — the hero camera keyframes needed no retuning.
 
 The converter drops normals, UVs and tangents (the renderer shades per face from
-world-space normals it computes itself), welds vertices at 1 cm, and merges every
-primitive sharing a `(cluster, material)` pair. That takes the 352 KB GLB to a
-58 KB JSON of 37 triangle batches — and means no glTF parser ships to the
-browser. Each batch keeps its cluster tag, so the hero's focus system still
-brightens whatever the camera is looking at.
+world-space normals it computes itself), welds vertices at 1 mm, and merges every
+primitive sharing a `(cluster, material, motion)` tuple. Coplanar triangle pairs
+become convex panels so screens and whiteboards sort cleanly at close range. The
+433 KB GLB becomes a 115 KB JSON payload of 48 batches, so no glTF parser ships
+to the browser. Each batch keeps its cluster and object-level motion metadata,
+so focus highlighting and the animated knowledge core remain independent.
 
 Loading is progressive: `createScene(quality)` paints the procedural fallback
 immediately, then `loadCampus()` swaps in the authored geometry. If the fetch

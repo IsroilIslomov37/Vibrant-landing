@@ -367,7 +367,7 @@ function makeLine(
 
 /**
  * A triangle batch exported from the Blender campus scene, already merged by
- * (cluster, material) and welded. Produced by `tools/glb-to-scene.mjs`.
+ * (cluster, material, motion) and welded. Produced by `tools/glb-to-scene.mjs`.
  */
 export interface CampusGroup {
   cluster: Cluster;
@@ -377,23 +377,16 @@ export interface CampusGroup {
   alpha: number;
   positions: number[];
   indices: number[];
+  /** Coplanar triangles joined into convex panels for stable depth sorting. */
+  polygons?: number[][];
+  /** Only the core and its satellites animate; furniture and books stay fixed. */
+  spin?: Spin;
 }
 
 export interface CampusData {
   triangles: number;
   groups: CampusGroup[];
 }
-
-/**
- * Groups that orbit or rotate. The authored geometry is static, so the few
- * pieces that should feel alive get their spin re-attached here rather than
- * being baked into the export.
- */
-const CAMPUS_SPIN: Record<string, Spin> = {
-  'hub|brand': { speed: 0.16, cx: 0, cy: 6.2, cz: 0 },
-  'hub|aqua': { speed: -0.24, cx: 0, cy: 6.2, cz: 0 },
-  'hub|rose': { speed: 0.19, cx: 0, cy: 6.2, cz: 0 },
-};
 
 /** Decorative dressing dropped first when the device cannot afford the full scene. */
 const CAMPUS_OPTIONAL = new Set(['leaf', 'wood', 'gold', 'ink']);
@@ -407,18 +400,19 @@ export function buildCampusMeshes(data: CampusData, quality: Quality): Mesh[] {
       continue;
     }
 
-    const faces: Face[] = [];
-    for (let i = 0; i < group.indices.length; i += 3) {
-      faces.push({
-        idx: [group.indices[i], group.indices[i + 1], group.indices[i + 2]],
+    const polygons = group.polygons ?? Array.from(
+      { length: group.indices.length / 3 },
+      (_, i) => group.indices.slice(i * 3, i * 3 + 3),
+    );
+    const faces: Face[] = polygons.map((idx) => ({
+        idx,
         color: group.color,
         emissive: group.emissive,
         alpha: group.alpha,
         // Triangles from a modelled mesh share interior edges; stroking them
         // would draw a wireframe over every surface.
         edge: false,
-      });
-    }
+      }));
 
     const base = Float32Array.from(group.positions);
     meshes.push({
@@ -429,7 +423,8 @@ export function buildCampusMeshes(data: CampusData, quality: Quality): Mesh[] {
       world: new Float32Array(base.length),
       screen: new Float32Array((base.length / 3) * 4),
       faces,
-      spin: CAMPUS_SPIN[`${group.cluster}|${group.material}`],
+      // Legacy payloads without motion metadata remain safely static.
+      spin: group.spin,
     });
   }
 
@@ -709,6 +704,19 @@ export function createScene(quality: Quality, campus?: CampusData | null): Scene
 
   if (campus) {
     meshes.push(...buildCampusMeshes(campus, quality));
+    // The authored campus has real alumni and a globe. Floating network nodes
+    // belong to the fallback, and would obscure those details if kept on top.
+    for (let i = lines.length - 1; i >= 0; i -= 1) {
+      if (lines[i].cluster === 'community') lines.splice(i, 1);
+      else if (lines[i].layer === 'object') lines[i].alpha *= 0.55;
+    }
+    for (let i = glows.length - 1; i >= 0; i -= 1) {
+      if (glows[i].cluster === 'community' && glows[i].y !== 4.6) glows.splice(i, 1);
+      else {
+        glows[i].intensity *= 0.45;
+        glows[i].radius *= 0.7;
+      }
+    }
   } else {
     meshes.push(...proceduralMeshes);
   }
@@ -840,6 +848,43 @@ interface DrawFace {
   depth: number;
   shade: number;
   rim: number;
+  clipped?: { points: number[]; depth: number };
+}
+
+/** Clip only intersecting faces, so close camera passes keep a continuous floor. */
+function clipFace(
+  face: Face,
+  world: Float32Array,
+  basis: Basis,
+  centerX: number,
+  centerY: number,
+): { points: number[]; depth: number } | null {
+  const input = face.idx.map((index) => {
+    const dx = world[index * 3] - basis.px;
+    const dy = world[index * 3 + 1] - basis.py;
+    const dz = world[index * 3 + 2] - basis.pz;
+    return [dx * basis.rx + dy * basis.ry + dz * basis.rz,
+      dx * basis.ux + dy * basis.uy + dz * basis.uz,
+      dx * basis.fx + dy * basis.fy + dz * basis.fz];
+  });
+  const clipped: number[][] = [];
+  for (let i = 0; i < input.length; i += 1) {
+    const a = input[i], b = input[(i + 1) % input.length];
+    const insideA = a[2] > NEAR, insideB = b[2] > NEAR;
+    if (insideA) clipped.push(a);
+    if (insideA !== insideB) {
+      const t = (NEAR - a[2]) / (b[2] - a[2]);
+      clipped.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, NEAR]);
+    }
+  }
+  if (clipped.length < 3) return null;
+  return {
+    points: clipped.flatMap(([x, y, z]) => [
+      centerX + x * basis.focal / z,
+      centerY - y * basis.focal / z,
+    ]),
+    depth: clipped.reduce((sum, point) => sum + point[2], 0) / clipped.length,
+  };
 }
 
 const FOG: RGB = [10, 13, 32];
@@ -868,6 +913,14 @@ export interface RenderOptions {
   time: number;
   /** 0 = scene fully faded out (used while the hero is off-screen). */
   opacity: number;
+  framing?: { x: number; y: number; scale: number };
+}
+
+/** Reserve the left side for copy on desktop and the lower half on phones. */
+export function heroFraming(width: number, height: number) {
+  if (width >= 1024) return { x: 0.72, y: 0.57, scale: 0.72 };
+  if (width > height) return { x: 0.68, y: 0.58, scale: 0.7 };
+  return { x: 0.52, y: 0.79, scale: Math.min(0.44, width / height * 0.85) };
 }
 
 export function renderScene(
@@ -877,9 +930,9 @@ export function renderScene(
   options: RenderOptions,
 ) {
   const { width, height, time, opacity } = options;
-  const halfW = width / 2;
-  const halfH = height / 2;
-  const basis = computeBasis(cam, height);
+  const halfW = width * (options.framing?.x ?? 0.5);
+  const halfH = height * (options.framing?.y ?? 0.5);
+  const basis = computeBasis(cam, height * (options.framing?.scale ?? 1));
 
   const lightAngle = cam.lightYaw * DEG;
   const lx = Math.sin(lightAngle) * 0.72;
@@ -924,17 +977,13 @@ export function renderScene(
     const { world, screen, faces } = mesh;
     for (const face of faces) {
       const [i0, i1, i2] = face.idx;
-      // Any vertex behind the near plane -> skip the face (no clipping pass).
-      let visible = true;
+      let visibleCount = 0;
       let depth = 0;
       for (const index of face.idx) {
-        if (screen[index * 4 + 3] === 0) {
-          visible = false;
-          break;
-        }
+        if (screen[index * 4 + 3] !== 0) visibleCount += 1;
         depth += screen[index * 4 + 2];
       }
-      if (!visible) continue;
+      if (visibleCount === 0) continue;
       depth /= face.idx.length;
 
       const ax = world[i0 * 3];
@@ -968,7 +1017,11 @@ export function renderScene(
       const rim = Math.pow(1 - Math.min(1, facing), 3);
 
       const bucket = mesh.layer === 'ground' ? groundFaces : objectFaces;
-      bucket.push({ mesh, face, depth, shade, rim });
+      const clipped = visibleCount === face.idx.length
+        ? undefined
+        : clipFace(face, world, basis, halfW, halfH);
+      if (visibleCount !== face.idx.length && !clipped) continue;
+      bucket.push({ mesh, face, depth: clipped?.depth ?? depth, shade, rim, clipped: clipped ?? undefined });
     }
   }
 
@@ -995,15 +1048,19 @@ export function renderScene(
       g = mixChannel(g, FOG[1], fog);
       b = mixChannel(b, FOG[2], fog);
 
-      const alpha = face.alpha * opacity * (0.35 + 0.65 * focus);
+      // Focus changes illumination, not the solidity of desks, screens and walls.
+      const alpha = face.alpha * opacity;
       if (alpha <= 0.01) continue;
 
       const screen = mesh.screen;
       ctx.beginPath();
-      for (let i = 0; i < face.idx.length; i += 1) {
-        const o = face.idx[i] * 4;
-        if (i === 0) ctx.moveTo(screen[o], screen[o + 1]);
-        else ctx.lineTo(screen[o], screen[o + 1]);
+      const clippedPoints = item.clipped?.points;
+      const count = clippedPoints ? clippedPoints.length / 2 : face.idx.length;
+      for (let i = 0; i < count; i += 1) {
+        const x = clippedPoints ? clippedPoints[i * 2] : screen[face.idx[i] * 4];
+        const y = clippedPoints ? clippedPoints[i * 2 + 1] : screen[face.idx[i] * 4 + 1];
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
       }
       ctx.closePath();
       ctx.globalAlpha = alpha;

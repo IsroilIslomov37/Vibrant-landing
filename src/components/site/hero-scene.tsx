@@ -10,6 +10,7 @@ import { usePrefersReducedMotion } from '@/hooks/use-animations';
 import {
   createScene,
   detectQuality,
+  heroFraming,
   loadCampus,
   renderScene,
   toCameraState,
@@ -114,8 +115,9 @@ export function HeroScene() {
         width,
         height,
         dpr,
-        time: gsap.ticker.time,
+        time: reducedMotion ? 0 : gsap.ticker.time,
         opacity: 1,
+        framing: heroFraming(width, height),
       });
     };
 
@@ -130,7 +132,7 @@ export function HeroScene() {
     };
     // `stages` identity changes only when the admin edits content, which should
     // rebuild the scene — that is the intended dependency.
-  }, [stages]);
+  }, [stages, reducedMotion]);
 
   /* ---------------------------------------------------- scroll choreography */
   useEffect(() => {
@@ -144,6 +146,9 @@ export function HeroScene() {
       overlayRefs.current.forEach((element, index) => {
         if (element) gsap.set(element, { autoAlpha: index === 0 ? 1 : 0, y: 0, filter: 'none' });
       });
+      setActiveStage(0);
+      if (progressBarRef.current) progressBarRef.current.style.transform = 'scaleX(0)';
+      if (hintRef.current) hintRef.current.style.opacity = '1';
       return;
     }
 
@@ -248,7 +253,11 @@ export function HeroScene() {
   /* ------------------------------------------------------ pointer parallax */
   useEffect(() => {
     const pin = pinRef.current;
-    if (!pin || reducedMotion) return;
+    if (reducedMotion) {
+      pointerRef.current = { yaw: 0, pitch: 0, targetYaw: 0, targetPitch: 0 };
+      return;
+    }
+    if (!pin) return;
     if (window.matchMedia('(pointer: coarse)').matches) return;
 
     const onMove = (event: PointerEvent) => {
@@ -279,7 +288,9 @@ export function HeroScene() {
         const cam = camRef.current;
         if (cam) Object.assign(cam, toCameraState(stages[index].camera));
         overlayRefs.current.forEach((element, i) => {
-          if (element) gsap.to(element, { autoAlpha: i === index ? 1 : 0, duration: 0.35 });
+          if (!element) return;
+          if (reducedMotion) gsap.set(element, { autoAlpha: i === index ? 1 : 0 });
+          else gsap.to(element, { autoAlpha: i === index ? 1 : 0, duration: 0.35 });
         });
         setActiveStage(index);
         return;
@@ -329,7 +340,7 @@ export function HeroScene() {
           {/* Padding (not margin) so the content centres inside the space the
               fixed header leaves, instead of centring behind it. */}
           <div className="container flex h-full items-center pb-14 pt-[6.5rem]">
-            <div className="relative w-full max-w-3xl">
+            <div className="relative w-full max-w-3xl -translate-y-[14vh] lg:max-w-[45%] lg:translate-y-0">
               {stages.map((stage, index) => (
                 <div
                   key={stage.id}
@@ -396,7 +407,10 @@ export function HeroScene() {
         {/* --------------------------------------------------- stage rail */}
         <nav
           aria-label={ts('hero.progress')}
-          className="absolute right-5 top-1/2 z-10 hidden -translate-y-1/2 flex-col items-center gap-3 lg:flex"
+          className={cn(
+            'absolute right-3 top-1/2 z-10 -translate-y-1/2 flex-col items-center gap-3 lg:right-5',
+            reducedMotion ? 'flex' : 'hidden lg:flex',
+          )}
         >
           {stages.map((stage, index) => (
             <button
